@@ -134,6 +134,7 @@
     box-shadow: inset 0 0 0 2px rgba(0,0,0,0.6);
   }
   .swatch.on { border-color: #fff; }
+  #bgSwatches .swatch:not(.custom) { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
   .swatch.custom {
     position: relative; overflow: hidden;
     background: conic-gradient(#ff6b6b, #ffd166, #9fe8c9, #a8d4ff, #c9a8ff, #ff6b6b);
@@ -155,7 +156,7 @@
     border: none; border-radius: 10px;
     background: var(--accent); color: #fff; font-size: 16px; font-weight: 600;
   }
-  #update {
+  #update, .sub-btn {
     width: 100%; margin-top: 8px; padding: 10px;
     border: 1px solid var(--line); border-radius: 10px;
     background: rgba(255,255,255,0.08); color: #f5f5f5; font-size: 15px;
@@ -184,8 +185,12 @@
   </div>
   <h2>フォント</h2>
   <div class="fonts" id="fonts"></div>
-  <h2>文字色・明るさ</h2>
+  <h2>文字色</h2>
   <div class="swatches" id="swatches"></div>
+  <h2>背景色</h2>
+  <div class="swatches" id="bgSwatches"></div>
+  <button id="random" class="sub-btn">🎲 文字色と背景色をランダムに</button>
+  <h2>画面</h2>
   <div class="row"><label for="oBright">明るさ</label><input type="range" id="oBright" min="10" max="100"></div>
   <h2>夜間モード</h2>
   <div class="row"><label for="oNight">夜は暗く赤くする</label><input type="checkbox" id="oNight"></div>
@@ -203,6 +208,10 @@
     '#f5f5f5', '#d9d9d9', '#fff3d6', '#ffd9a0', '#ffb347', '#ffd166',
     '#c5f27a', '#9fe8c9', '#5ce1e6', '#a8d4ff', '#7aa2ff', '#c9a8ff',
     '#ff9ecb', '#ff6b6b'
+  ];
+  const BGS = [
+    '#000000', '#1c1c1e', '#0b1a2e', '#0d2a1f', '#1f1033', '#2a1508',
+    '#3a0d14', '#12343b', '#f5f0e6', '#ffffff'
   ];
   // Fonts built into iPadOS (on a PC some fall back to a similar font)
   const FONTS = [
@@ -223,13 +232,13 @@
   ];
   const DEFAULTS = {
     h24: true, sec: false, blink: true, date: true, weight: '200',
-    color: COLORS[0], bright: 100, font: 0,
+    color: COLORS[0], bg: '#000000', bright: 100, font: 0,
     night: true, nightFrom: '22:00', nightTo: '06:00'
   };
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.3.0';
+  const VERSION = '1.4.0';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -254,6 +263,8 @@
     document.documentElement.style.setProperty('--fg', night ? '#ff3b30' : s.color);
     document.documentElement.style.setProperty('--sub', night ? 'rgba(255,59,48,0.6)' : hexA(s.color, 0.55));
     $('stage').style.opacity = night ? Math.min(s.bright, 35) / 100 : s.bright / 100;
+    // Background lives on the stage so the brightness slider dims it too; black at night
+    $('stage').style.background = night ? '#000' : s.bg;
     $('time').style.fontWeight = s.weight;
     $('clock').style.fontFamily = (FONTS[s.font] || FONTS[0])[1];
     $('sec').classList.toggle('hidden', !s.sec);
@@ -346,27 +357,58 @@
   const br = $('oBright'); br.value = s.bright;
   br.addEventListener('input', () => { s.bright = +br.value; save(); applyStyle(new Date()); });
 
-  const pickColor = (c, el) => {
-    s.color = c; save(); applyStyle(new Date());
-    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('on', x === el));
+  // A row of color swatches + free picker bound to s[key]; returns a function that re-syncs the selection
+  function buildSwatches(boxId, key, colors) {
+    const box = $(boxId), items = [];
+    const sync = () => {
+      const preset = colors.includes(s[key]);
+      items.forEach(([c, el]) => el.classList.toggle('on', c ? c === s[key] : !preset));
+      cs.style.background = preset ? '' : s[key];
+      ci.value = s[key];
+    };
+    const pick = c => { s[key] = c; save(); applyStyle(new Date()); sync(); };
+    colors.forEach(c => {
+      const b = document.createElement('div');
+      b.className = 'swatch'; b.style.background = c;
+      b.addEventListener('click', () => pick(c));
+      box.appendChild(b); items.push([c, b]);
+    });
+    const cs = document.createElement('label');
+    cs.className = 'swatch custom'; cs.title = '好きな色';
+    const ci = document.createElement('input');
+    ci.type = 'color';
+    ci.addEventListener('input', () => pick(ci.value));
+    cs.appendChild(ci); box.appendChild(cs); items.push([null, cs]);
+    sync();
+    return sync;
+  }
+  const syncFg = buildSwatches('swatches', 'color', COLORS);
+  const syncBg = buildSwatches('bgSwatches', 'bg', BGS);
+
+  // --- Random color combo with enough contrast to read the time ---
+  const hsl2hex = (h, s, l) => {
+    s /= 100; l /= 100;
+    const f = n => { const k = (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+      return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0'); };
+    return '#' + f(0) + f(8) + f(4);
   };
-  COLORS.forEach(c => {
-    const b = document.createElement('div');
-    b.className = 'swatch' + (c === s.color ? ' on' : '');
-    b.style.background = c;
-    b.addEventListener('click', () => pickColor(c, b));
-    $('swatches').appendChild(b);
+  const lum = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255]
+      .map(v => (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+      .reduce((t, v, i) => t + v * [0.2126, 0.7152, 0.0722][i], 0);
+  };
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  $('random').addEventListener('click', () => {
+    for (let i = 0; i < 50; i++) {
+      const light = Math.random() < 0.2; // mostly dark backgrounds, sometimes light ones
+      const bg = hsl2hex(rnd(0, 360), rnd(20, 70), light ? rnd(82, 95) : rnd(3, 18));
+      const fg = hsl2hex(rnd(0, 360), rnd(40, 100), light ? rnd(12, 32) : rnd(65, 92));
+      if (contrast(fg, bg) >= 7) { s.color = fg; s.bg = bg; break; }
+    }
+    save(); applyStyle(new Date()); syncFg(); syncBg();
   });
-  // Free color picker
-  const cs = document.createElement('label');
-  cs.className = 'swatch custom' + (COLORS.includes(s.color) ? '' : ' on');
-  cs.title = '好きな色';
-  const ci = document.createElement('input');
-  ci.type = 'color'; ci.value = s.color;
-  ci.addEventListener('input', () => { cs.style.background = ci.value; pickColor(ci.value, cs); });
-  if (!COLORS.includes(s.color)) cs.style.background = s.color;
-  cs.appendChild(ci);
-  $('swatches').appendChild(cs);
 
   FONTS.forEach(([name, family], i) => {
     const b = document.createElement('div');
