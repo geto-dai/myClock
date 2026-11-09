@@ -62,6 +62,7 @@
     align-items: baseline;
   }
   #time .colon { padding: 0 0.02em; position: relative; top: -0.06em; }
+  #time .d { font-style: normal; display: inline-block; width: var(--dw, 0.62em); text-align: center; letter-spacing: 0; }
   #time .colon.blink { animation: blink 2s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0.25; } }
   #ampm { font-size: 0.18em; font-weight: 400; margin-left: 0.25em; color: var(--sub); }
@@ -323,7 +324,7 @@
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?' + specs +
-      '&text=' + encodeURIComponent('0123456789:/AMP年月日火水木金土（）') + '&display=swap';
+      '&text=' + encodeURIComponent('0123456789:/ AMP年月日火水木金土（）SunMoTeWdhFriSat') + '&display=swap';
     document.head.appendChild(link);
   }
   const DEFAULTS = {
@@ -334,17 +335,18 @@
     dateStyle: 'ja', // 'ja' = 11月9日 / 'slash' = 11/09
     year: false
   };
-  // 'ja': 2026年11月9日（月）  'slash': 2026/11/09（月）  (year only when s.year)
+  // 'ja': 2026年11月9日（月）  'slash': 2026/11/09 Mon  (year only when s.year)
   function formatDate(d) {
-    const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate(), w = `（${WEEK[d.getDay()]}）`;
+    const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
     return s.dateStyle === 'slash'
-      ? (s.year ? `${y}/` : '') + `${pad(m)}/${pad(day)}${w}`
-      : (s.year ? `${y}年` : '') + `${m}月${day}日${w}`;
+      ? (s.year ? `${y}/` : '') + `${pad(m)}/${pad(day)} ${WEEK_EN[d.getDay()]}`
+      : (s.year ? `${y}年` : '') + `${m}月${day}日（${WEEK[d.getDay()]}）`;
   }
+  const WEEK_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.6.0';
+  const VERSION = '1.6.1';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -373,6 +375,7 @@
     $('stage').style.background = night ? '#000' : s.bg;
     $('time').style.fontWeight = s.weight;
     $('clock').style.fontFamily = (FONTS[s.font] || FONTS[0])[1];
+    measureDigits();
     $('sec').classList.toggle('hidden', !s.sec);
     $('ampm').classList.toggle('hidden', s.h24);
     $('date').classList.toggle('hidden', !s.date);
@@ -383,14 +386,39 @@
     return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
   }
 
+  // --- Fixed-width digits ---
+  // Most fonts draw "1" narrower than "0", so the centered clock would wobble every second.
+  // Each digit gets its own box as wide as the widest digit of the current font.
+  function setDigits(id, str) {
+    const el = $(id);
+    if (el.dataset.v === str) return;
+    el.dataset.v = str;
+    el.innerHTML = [...str].map(c => `<i class="d">${c}</i>`).join('');
+  }
+  function measureDigits() {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;letter-spacing:0';
+    $('time').appendChild(probe);
+    const fs = parseFloat(getComputedStyle(probe).fontSize);
+    let max = 0;
+    for (let d = 0; d <= 9; d++) { probe.textContent = String(d); max = Math.max(max, probe.getBoundingClientRect().width); }
+    probe.remove();
+    if (fs && max) $('time').style.setProperty('--dw', (max / fs).toFixed(3) + 'em');
+  }
+  // Re-measure once web fonts finish loading
+  if (document.fonts) {
+    document.fonts.ready.then(measureDigits);
+    document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', measureDigits);
+  }
+
   let timer = null, lastMin = -1;
   function tick() {
     const now = new Date();
     let h = now.getHours();
     if (!s.h24) { $('ampm').textContent = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; }
-    $('hh').textContent = s.h24 ? pad(h) : String(h);
-    $('mm').textContent = pad(now.getMinutes());
-    $('sec').textContent = pad(now.getSeconds());
+    setDigits('hh', s.h24 ? pad(h) : String(h));
+    setDigits('mm', pad(now.getMinutes()));
+    setDigits('sec', pad(now.getSeconds()));
     $('date').textContent = formatDate(now);
     if (now.getMinutes() !== lastMin) { lastMin = now.getMinutes(); applyStyle(now); shift(now); }
     clearTimeout(timer);
