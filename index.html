@@ -191,6 +191,10 @@
   <div class="row"><label for="oSec">秒を表示</label><input type="checkbox" id="oSec"></div>
   <div class="row"><label for="oBlink">コロンを点滅</label><input type="checkbox" id="oBlink"></div>
   <div class="row"><label for="oDate">日付を表示</label><input type="checkbox" id="oDate"></div>
+  <div class="row"><label for="oDateStyle">日付の形式</label>
+    <select id="oDateStyle"><option value="ja">11月9日</option><option value="slash">11/09</option></select>
+  </div>
+  <div class="row"><label for="oYear">年も表示</label><input type="checkbox" id="oYear"></div>
   <div class="row"><label for="oDrift">焼き付き防止<br><small style="color:rgba(255,255,255,0.45);font-size:12px">1分ごとに位置を少しずらす</small></label><input type="checkbox" id="oDrift"></div>
   <div class="row"><label for="oWeight">数字の太さ</label>
     <select id="oWeight"><option value="100">極細</option><option value="200">細</option><option value="400">標準</option><option value="600">太</option></select>
@@ -319,19 +323,28 @@
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://fonts.googleapis.com/css2?' + specs +
-      '&text=' + encodeURIComponent('0123456789:AMP月日火水木金土（）') + '&display=swap';
+      '&text=' + encodeURIComponent('0123456789:/AMP年月日火水木金土（）') + '&display=swap';
     document.head.appendChild(link);
   }
   const DEFAULTS = {
     h24: true, sec: false, blink: true, date: true, weight: '200',
     color: '#f5f5f5', bg: '#000000', bright: 100, font: 0,
     night: true, nightFrom: '22:00', nightTo: '06:00',
-    drift: false // burn-in protection; off by default (most iPads are LCD)
+    drift: false, // burn-in protection; off by default (most iPads are LCD)
+    dateStyle: 'ja', // 'ja' = 11月9日 / 'slash' = 11/09
+    year: false
   };
+  // 'ja': 2026年11月9日（月）  'slash': 2026/11/09（月）  (year only when s.year)
+  function formatDate(d) {
+    const y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate(), w = `（${WEEK[d.getDay()]}）`;
+    return s.dateStyle === 'slash'
+      ? (s.year ? `${y}/` : '') + `${pad(m)}/${pad(day)}${w}`
+      : (s.year ? `${y}年` : '') + `${m}月${day}日${w}`;
+  }
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.5.1';
+  const VERSION = '1.6.0';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -378,7 +391,7 @@
     $('hh').textContent = s.h24 ? pad(h) : String(h);
     $('mm').textContent = pad(now.getMinutes());
     $('sec').textContent = pad(now.getSeconds());
-    $('date').textContent = `${now.getMonth() + 1}月${now.getDate()}日（${WEEK[now.getDay()]}）`;
+    $('date').textContent = formatDate(now);
     if (now.getMinutes() !== lastMin) { lastMin = now.getMinutes(); applyStyle(now); shift(now); }
     clearTimeout(timer);
     timer = setTimeout(tick, 1000 - now.getMilliseconds() + 5);
@@ -447,6 +460,7 @@
   };
   bind('o24', 'h24'); bind('oSec', 'sec'); bind('oBlink', 'blink'); bind('oDate', 'date');
   bind('oWeight', 'weight', 'value'); bind('oNight', 'night');
+  bind('oDateStyle', 'dateStyle', 'value'); bind('oYear', 'year');
   bind('oDrift', 'drift'); $('oDrift').addEventListener('input', () => shift(new Date()));
   bind('oNightFrom', 'nightFrom', 'value'); bind('oNightTo', 'nightTo', 'value');
   const br = $('oBright'); br.value = s.bright;
