@@ -83,8 +83,12 @@
     right: max(16px, env(safe-area-inset-right));
     top: max(16px, env(safe-area-inset-top));
     width: min(360px, calc(100vw - 32px));
+    /* Fit inside the area the iPad really shows (status bar / home indicator excluded) */
     max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - max(16px, env(safe-area-inset-top)) - max(16px, env(safe-area-inset-bottom)));
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 16px;
@@ -147,7 +151,7 @@
     border: 1px solid var(--line); border-radius: 10px;
     background: rgba(255,255,255,0.08); color: #f5f5f5; font-size: 15px;
   }
-  #version { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 4px; }
+  #version { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 4px; padding-bottom: 4px; }
   #status { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 10px; line-height: 1.5; }
 </style>
 </head>
@@ -216,7 +220,7 @@
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
