@@ -214,7 +214,9 @@
     night: true, nightFrom: '22:00', nightTo: '06:00'
   };
   const KEY = 'standby-clock-settings';
-  const VERSION = '2026-11-09.3'; // bump on every change so open clocks reload themselves
+  // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
+  //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
+  const VERSION = '1.2.0';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -288,7 +290,7 @@
     $('status').textContent = !('wakeLock' in navigator)
       ? '画面スリープ防止：このブラウザでは使えません。iPadの「自動ロック」を「なし」にしてください。'
       : lock ? '画面スリープ防止：有効' : '画面スリープ防止：画面をタップすると有効になります';
-    $('version').textContent = 'バージョン：' + VERSION;
+    $('version').textContent = 'バージョン v' + VERSION;
   }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') { keepAwake(); checkUpdate(); }
