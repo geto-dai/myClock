@@ -191,6 +191,7 @@
   <div class="row"><label for="oSec">秒を表示</label><input type="checkbox" id="oSec"></div>
   <div class="row"><label for="oBlink">コロンを点滅</label><input type="checkbox" id="oBlink"></div>
   <div class="row"><label for="oDate">日付を表示</label><input type="checkbox" id="oDate"></div>
+  <div class="row"><label for="oDrift">焼き付き防止<br><small style="color:rgba(255,255,255,0.45);font-size:12px">1分ごとに位置を少しずらす</small></label><input type="checkbox" id="oDrift"></div>
   <div class="row"><label for="oWeight">数字の太さ</label>
     <select id="oWeight"><option value="100">極細</option><option value="200">細</option><option value="400">標準</option><option value="600">太</option></select>
   </div>
@@ -324,12 +325,13 @@
   const DEFAULTS = {
     h24: true, sec: false, blink: true, date: true, weight: '200',
     color: '#f5f5f5', bg: '#000000', bright: 100, font: 0,
-    night: true, nightFrom: '22:00', nightTo: '06:00'
+    night: true, nightFrom: '22:00', nightTo: '06:00',
+    drift: false // burn-in protection; off by default (most iPads are LCD)
   };
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.5.0';
+  const VERSION = '1.5.1';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -384,6 +386,7 @@
 
   // Burn-in protection: drift the clock a few pixels every minute
   function shift(now) {
+    if (!s.drift) { $('clock').style.transform = ''; return; }
     const m = now.getMinutes();
     const x = Math.round(Math.sin(m * 0.7) * 14);
     const y = Math.round(Math.cos(m * 0.5) * 10);
@@ -444,6 +447,7 @@
   };
   bind('o24', 'h24'); bind('oSec', 'sec'); bind('oBlink', 'blink'); bind('oDate', 'date');
   bind('oWeight', 'weight', 'value'); bind('oNight', 'night');
+  bind('oDrift', 'drift'); $('oDrift').addEventListener('input', () => shift(new Date()));
   bind('oNightFrom', 'nightFrom', 'value'); bind('oNightTo', 'nightTo', 'value');
   const br = $('oBright'); br.value = s.bright;
   br.addEventListener('input', () => { s.bright = +br.value; save(); applyStyle(new Date()); });
