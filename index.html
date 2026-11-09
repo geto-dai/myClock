@@ -142,6 +142,12 @@
     border: none; border-radius: 10px;
     background: var(--accent); color: #fff; font-size: 16px; font-weight: 600;
   }
+  #update {
+    width: 100%; margin-top: 8px; padding: 10px;
+    border: 1px solid var(--line); border-radius: 10px;
+    background: rgba(255,255,255,0.08); color: #f5f5f5; font-size: 15px;
+  }
+  #version { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 4px; }
   #status { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 10px; line-height: 1.5; }
 </style>
 </head>
@@ -173,7 +179,9 @@
   <div class="row"><label for="oNightFrom">開始</label><input type="time" id="oNightFrom"></div>
   <div class="row"><label for="oNightTo">終了</label><input type="time" id="oNightTo"></div>
   <button id="close">閉じる</button>
+  <button id="update">最新版に更新</button>
   <div id="status"></div>
+  <div id="version"></div>
 </div>
 
 <script>
@@ -206,6 +214,7 @@
     night: true, nightFrom: '22:00', nightTo: '06:00'
   };
   const KEY = 'standby-clock-settings';
+  const VERSION = '2026-11-09.3'; // bump on every change so open clocks reload themselves
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -279,8 +288,36 @@
     $('status').textContent = !('wakeLock' in navigator)
       ? '画面スリープ防止：このブラウザでは使えません。iPadの「自動ロック」を「なし」にしてください。'
       : lock ? '画面スリープ防止：有効' : '画面スリープ防止：画面をタップすると有効になります';
+    $('version').textContent = 'バージョン：' + VERSION;
   }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { keepAwake(); checkUpdate(); }
+  });
+
+  // --- Auto update: fetch the page bypassing cache, reload if VERSION changed ---
+  async function checkUpdate() {
+    try {
+      const res = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const m = (await res.text()).match(/const VERSION = '([^']+)'/);
+      if (m && m[1] !== VERSION) location.replace(location.pathname + '?v=' + encodeURIComponent(m[1]));
+    } catch (e) {}
+  }
+  setInterval(checkUpdate, 15 * 60 * 1000);
+
+  // Manual update button: always reload past the cache
+  $('update').addEventListener('click', async () => {
+    const btn = $('update');
+    btn.disabled = true; btn.textContent = '確認中…';
+    let latest = VERSION;
+    try {
+      const res = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' });
+      const m = (await res.text()).match(/const VERSION = '([^']+)'/);
+      if (m) latest = m[1];
+    } catch (e) {}
+    btn.textContent = latest === VERSION ? '最新版です。再読み込みします…' : '新しい版があります。更新します…';
+    setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(latest) + '-' + Date.now()), 800);
+  });
 
   // --- Settings panel ---
   const bind = (id, key, prop = 'checked') => {
