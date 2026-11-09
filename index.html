@@ -143,14 +143,25 @@
     position: absolute; inset: 0; width: 100%; height: 100%;
     opacity: 0; cursor: pointer; border: none;
   }
-  .fonts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 0; }
+  /* Many fonts: 3 columns in their own scroll box */
+  .fonts {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 8px 4px 8px 0;
+    max-height: 300px; overflow-y: auto; overscroll-behavior: contain; position: relative;
+  }
+  .break { flex-basis: 100%; height: 0; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .btns .sub-btn { margin-top: 0; padding: 10px 4px; font-size: 13px; }
   .font {
     background: rgba(255,255,255,0.06); border: 2px solid transparent; border-radius: 10px;
     padding: 8px 6px 6px; text-align: center; cursor: pointer; color: #f5f5f5;
   }
   .font.on { border-color: var(--accent); background: rgba(10,132,255,0.15); }
-  .font b { display: block; font-size: 28px; font-weight: 300; line-height: 1.1; }
-  .font small { display: block; font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; font-family: -apple-system, sans-serif; }
+  .font { min-width: 0; padding: 6px 2px 4px; }
+  .font b { display: block; font-size: 20px; font-weight: 400; line-height: 1.3; white-space: nowrap; overflow: hidden; }
+  .font small {
+    display: block; font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px;
+    font-family: -apple-system, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   #close {
     width: 100%; margin-top: 14px; padding: 12px;
     border: none; border-radius: 10px;
@@ -185,11 +196,17 @@
   </div>
   <h2>フォント</h2>
   <div class="fonts" id="fonts"></div>
+  <button id="randomFont" class="sub-btn">🎲 フォントをランダムに</button>
   <h2>文字色</h2>
   <div class="swatches" id="swatches"></div>
   <h2>背景色</h2>
   <div class="swatches" id="bgSwatches"></div>
-  <button id="random" class="sub-btn">🎲 文字色と背景色をランダムに</button>
+  <h2>色をランダムに</h2>
+  <div class="btns">
+    <button class="sub-btn" data-mode="dark">🌙 暗い背景</button>
+    <button class="sub-btn" data-mode="light">☀️ 明るい背景</button>
+    <button class="sub-btn" data-mode="any">🎲 おまかせ</button>
+  </div>
   <h2>画面</h2>
   <div class="row"><label for="oBright">明るさ</label><input type="range" id="oBright" min="10" max="100"></div>
   <h2>夜間モード</h2>
@@ -204,16 +221,31 @@
 
 <script>
 (() => {
-  const COLORS = [
-    '#f5f5f5', '#d9d9d9', '#fff3d6', '#ffd9a0', '#ffb347', '#ffd166',
-    '#c5f27a', '#9fe8c9', '#5ce1e6', '#a8d4ff', '#7aa2ff', '#c9a8ff',
-    '#ff9ecb', '#ff6b6b'
+  // Color presets, grouped (each group starts a new line in the panel)
+  const LIGHT_INKS = [
+    '#ffffff', '#f5f5f5', '#d9d9d9', '#fff3d6', '#ffe5b4', '#ffd9a0', '#ffb347', '#ffd166',
+    '#f4f1a0', '#c5f27a', '#9fe8c9', '#b8f2e6', '#5ce1e6', '#a8d4ff', '#7aa2ff', '#e6e6fa',
+    '#c9a8ff', '#ffe0e9', '#ff9ecb', '#ff6b6b'
   ];
-  const BGS = [
-    '#000000', '#1c1c1e', '#0b1a2e', '#0d2a1f', '#1f1033', '#2a1508',
-    '#3a0d14', '#12343b', '#f5f0e6', '#ffffff'
+  const DARK_INKS = [
+    '#000000', '#1c1c1e', '#3a3a3c', '#5c5c5e', '#14213d', '#1d3557', '#003049', '#0f4c5c',
+    '#0b3d2e', '#264d00', '#4a5d23', '#3c096c', '#4a1c40', '#6a040f', '#7a0019', '#9d0208',
+    '#5c2a0c', '#8a4b00', '#7f5539', '#b5179e'
   ];
-  // Fonts built into iPadOS (on a PC some fall back to a similar font)
+  const DARK_BGS = [
+    '#000000', '#0a0a0a', '#1c1c1e', '#2b2d42', '#0b1a2e', '#14213d', '#1b263b', '#001219',
+    '#12343b', '#0f2027', '#0d2a1f', '#132a13', '#1f1033', '#22223b', '#2d1e2f', '#3a0d14',
+    '#3c1518', '#2a1508'
+  ];
+  const LIGHT_BGS = [
+    '#ffffff', '#f5f5f5', '#e5e5e5', '#f5f0e6', '#fff8dc', '#fef3c7', '#fce1c8', '#ffd6a5',
+    '#fde2e4', '#fbcfe8', '#f3e8ff', '#ede9fe', '#dbeafe', '#e0f2fe', '#d1fae5', '#e2f0cb',
+    '#ecfccb', '#cfe8e3'
+  ];
+  const COLORS = [LIGHT_INKS, DARK_INKS];
+  const BGS = [DARK_BGS, LIGHT_BGS];
+  // Fonts: [label, CSS font-family, Google Fonts spec (only for web fonts)]
+  // Keep the order — the chosen font is saved by its position. Add new ones at the end.
   const FONTS = [
     ['システム', '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'],
     ['丸ゴシック', 'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", sans-serif'],
@@ -229,16 +261,75 @@
     ['明朝', '"Hiragino Mincho ProN", "Yu Mincho", serif'],
     ['タイプライター', '"American Typewriter", "Courier New", monospace'],
     ['手書き', 'Noteworthy, "Marker Felt", "Comic Sans MS", cursive'],
+    // --- more fonts built into iPadOS ---
+    ['角ゴシック', '"Hiragino Sans", "Yu Gothic", sans-serif'],
+    ['Arial Rounded', '"Arial Rounded MT Bold", "Arial Rounded MT", sans-serif'],
+    ['Trebuchet', '"Trebuchet MS", sans-serif'],
+    ['Verdana', 'Verdana, sans-serif'],
+    ['Georgia', 'Georgia, serif'],
+    ['Palatino', 'Palatino, "Palatino Linotype", serif'],
+    ['Hoefler Text', '"Hoefler Text", Garamond, serif'],
+    ['Iowan', '"Iowan Old Style", "Book Antiqua", serif'],
+    ['Charter', 'Charter, "Bitstream Charter", Cambria, serif'],
+    ['Cochin', 'Cochin, Constantia, serif'],
+    ['Bodoni', '"Bodoni 72", "Bodoni MT", serif'],
+    ['Copperplate', 'Copperplate, "Copperplate Gothic Light", serif'],
+    ['Rockwell', 'Rockwell, "Rockwell Nova", serif'],
+    ['Superclarendon', 'Superclarendon, Rockwell, serif'],
+    ['Chalkduster', 'Chalkduster, "Segoe Print", cursive'],
+    ['Bradley Hand', '"Bradley Hand", "Segoe Script", cursive'],
+    ['Snell', '"Snell Roundhand", "Segoe Script", cursive'],
+    ['Marker Felt', '"Marker Felt", "Comic Sans MS", cursive'],
+    ['Papyrus', 'Papyrus, fantasy'],
+    ['Party', '"Party LET", "Segoe Print", cursive'],
+    // --- web fonts (Google Fonts; only digits and date characters are downloaded) ---
+    ['Orbitron', 'Orbitron, sans-serif', 'Orbitron:wght@400..900'],
+    ['Audiowide', 'Audiowide, sans-serif', 'Audiowide'],
+    ['Share Tech', '"Share Tech Mono", monospace', 'Share+Tech+Mono'],
+    ['VT323', 'VT323, monospace', 'VT323'],
+    ['Press Start', '"Press Start 2P", monospace', 'Press+Start+2P'],
+    ['Silkscreen', 'Silkscreen, monospace', 'Silkscreen'],
+    ['Major Mono', '"Major Mono Display", monospace', 'Major+Mono+Display'],
+    ['Bebas Neue', '"Bebas Neue", sans-serif', 'Bebas+Neue'],
+    ['Righteous', 'Righteous, sans-serif', 'Righteous'],
+    ['Monoton', 'Monoton, sans-serif', 'Monoton'],
+    ['Josefin Sans', '"Josefin Sans", sans-serif', 'Josefin+Sans:wght@100..700'],
+    ['Quicksand', 'Quicksand, sans-serif', 'Quicksand:wght@300..700'],
+    ['Comfortaa', 'Comfortaa, sans-serif', 'Comfortaa:wght@300..700'],
+    ['Fredoka', 'Fredoka, sans-serif', 'Fredoka:wght@300..700'],
+    ['Poiret One', '"Poiret One", sans-serif', 'Poiret+One'],
+    ['Playfair', '"Playfair Display", serif', 'Playfair+Display:wght@400..900'],
+    ['Abril Fatface', '"Abril Fatface", serif', 'Abril+Fatface'],
+    ['Lobster', 'Lobster, cursive', 'Lobster'],
+    ['Pacifico', 'Pacifico, cursive', 'Pacifico'],
+    ['Caveat', 'Caveat, cursive', 'Caveat:wght@400..700'],
+    ['Zen丸ゴシック', '"Zen Maru Gothic", sans-serif', 'Zen+Maru+Gothic:wght@300;400;500;700'],
+    ['Dela Gothic', '"Dela Gothic One", sans-serif', 'Dela+Gothic+One'],
+    ['ドット', 'DotGothic16, monospace', 'DotGothic16'],
+    ['ランパート', '"Rampart One", sans-serif', 'Rampart+One'],
+    ['レゲエ', '"Reggae One", sans-serif', 'Reggae+One'],
+    ['トレイン', '"Train One", sans-serif', 'Train+One'],
+    ['解星デコール', '"Kaisei Decol", serif', 'Kaisei+Decol'],
+    ['油性マジック', '"Yusei Magic", sans-serif', 'Yusei+Magic'],
   ];
+  // Load all web fonts in one request, limited to the characters the clock shows
+  {
+    const specs = FONTS.filter(f => f[2]).map(f => 'family=' + f[2]).join('&');
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?' + specs +
+      '&text=' + encodeURIComponent('0123456789:AMP月日火水木金土（）') + '&display=swap';
+    document.head.appendChild(link);
+  }
   const DEFAULTS = {
     h24: true, sec: false, blink: true, date: true, weight: '200',
-    color: COLORS[0], bg: '#000000', bright: 100, font: 0,
+    color: '#f5f5f5', bg: '#000000', bright: 100, font: 0,
     night: true, nightFrom: '22:00', nightTo: '06:00'
   };
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -358,8 +449,8 @@
   br.addEventListener('input', () => { s.bright = +br.value; save(); applyStyle(new Date()); });
 
   // A row of color swatches + free picker bound to s[key]; returns a function that re-syncs the selection
-  function buildSwatches(boxId, key, colors) {
-    const box = $(boxId), items = [];
+  function buildSwatches(boxId, key, groups) {
+    const box = $(boxId), items = [], colors = groups.flat();
     const sync = () => {
       const preset = colors.includes(s[key]);
       items.forEach(([c, el]) => el.classList.toggle('on', c ? c === s[key] : !preset));
@@ -367,11 +458,14 @@
       ci.value = s[key];
     };
     const pick = c => { s[key] = c; save(); applyStyle(new Date()); sync(); };
-    colors.forEach(c => {
-      const b = document.createElement('div');
-      b.className = 'swatch'; b.style.background = c;
-      b.addEventListener('click', () => pick(c));
-      box.appendChild(b); items.push([c, b]);
+    groups.forEach(group => {
+      group.forEach(c => {
+        const b = document.createElement('div');
+        b.className = 'swatch'; b.style.background = c;
+        b.addEventListener('click', () => pick(c));
+        box.appendChild(b); items.push([c, b]);
+      });
+      const br = document.createElement('div'); br.className = 'break'; box.appendChild(br);
     });
     const cs = document.createElement('label');
     cs.className = 'swatch custom'; cs.title = '好きな色';
@@ -400,25 +494,36 @@
   };
   const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
   const rnd = (a, b) => a + Math.random() * (b - a);
-  $('random').addEventListener('click', () => {
+  // mode: 'dark' = dark background + light text, 'light' = the reverse, 'any' = either
+  function randomColors(mode) {
     for (let i = 0; i < 50; i++) {
-      const light = Math.random() < 0.2; // mostly dark backgrounds, sometimes light ones
-      const bg = hsl2hex(rnd(0, 360), rnd(20, 70), light ? rnd(82, 95) : rnd(3, 18));
-      const fg = hsl2hex(rnd(0, 360), rnd(40, 100), light ? rnd(12, 32) : rnd(65, 92));
+      const light = mode === 'light' || (mode === 'any' && Math.random() < 0.5);
+      const bg = hsl2hex(rnd(0, 360), rnd(20, 80), light ? rnd(80, 96) : rnd(3, 18));
+      const fg = hsl2hex(rnd(0, 360), rnd(40, 100), light ? rnd(10, 32) : rnd(65, 92));
       if (contrast(fg, bg) >= 7) { s.color = fg; s.bg = bg; break; }
     }
     save(); applyStyle(new Date()); syncFg(); syncBg();
-  });
+  }
+  document.querySelectorAll('[data-mode]').forEach(b =>
+    b.addEventListener('click', () => randomColors(b.dataset.mode)));
 
-  FONTS.forEach(([name, family], i) => {
+  const fontEls = FONTS.map(([name, family], i) => {
     const b = document.createElement('div');
-    b.className = 'font' + (i === s.font ? ' on' : '');
+    b.className = 'font';
     b.innerHTML = `<b style='font-family:${family}'>12:34</b><small>${name}</small>`;
-    b.addEventListener('click', () => {
-      s.font = i; save(); applyStyle(new Date());
-      document.querySelectorAll('.font').forEach(x => x.classList.toggle('on', x === b));
-    });
+    b.addEventListener('click', () => pickFont(i));
     $('fonts').appendChild(b);
+    return b;
+  });
+  function pickFont(i, scroll) {
+    s.font = i; save(); applyStyle(new Date());
+    fontEls.forEach((x, j) => x.classList.toggle('on', j === i));
+    if (scroll) { const box = $('fonts'), el = fontEls[i]; box.scrollTop = el.offsetTop - box.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2; }
+  }
+  fontEls.forEach((x, j) => x.classList.toggle('on', j === s.font));
+  $('randomFont').addEventListener('click', () => {
+    let i; do { i = Math.floor(Math.random() * FONTS.length); } while (i === s.font);
+    pickFont(i, true);
   });
 
   $('stage').addEventListener('click', () => {
