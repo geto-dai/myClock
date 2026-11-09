@@ -36,8 +36,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: opacity 1.5s ease;
+    transition: opacity 1.5s ease, padding-right 0.4s ease;
   }
+  /* Width the clock may use: whole screen, or the part left of the settings panel */
+  body { --avail: 100vw; }
+  body.panel-open {
+    --panel-space: calc(min(360px, 100vw - 32px) + 32px + env(safe-area-inset-right));
+    --avail: calc(100vw - var(--panel-space));
+  }
+  body.panel-open #stage { padding-right: var(--panel-space); }
   #clock {
     display: flex;
     flex-direction: column;
@@ -46,7 +53,8 @@
   }
   #time {
     font-weight: 200;
-    font-size: min(30vw, 62vh);
+    font-size: min(calc(var(--avail) * 0.3), 62vh);
+    transition: font-size 0.4s ease;
     line-height: 1;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
@@ -60,7 +68,8 @@
   #sec { font-size: 0.3em; font-weight: 300; margin-left: 0.15em; color: var(--sub); }
   #date {
     margin-top: min(2vw, 3vh);
-    font-size: min(4.2vw, 7vh);
+    font-size: min(calc(var(--avail) * 0.042), 7vh);
+    transition: font-size 0.4s ease;
     font-weight: 300;
     color: var(--sub);
     letter-spacing: 0.04em;
@@ -220,7 +229,7 @@
   const KEY = 'standby-clock-settings';
   // MAJOR.MINOR.PATCH — bump on every change so open clocks reload themselves
   //   MAJOR: big redesign / MINOR: new feature / PATCH: fix or small tweak
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
 
   let s = { ...DEFAULTS };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
@@ -372,10 +381,15 @@
 
   $('stage').addEventListener('click', () => {
     keepAwake();
-    $('panel').classList.toggle('hidden');
+    setPanel($('panel').classList.contains('hidden'));
     $('hint').style.opacity = 0;
   });
-  $('close').addEventListener('click', () => $('panel').classList.add('hidden'));
+  $('close').addEventListener('click', () => setPanel(false));
+  // Open/close the panel; the clock shrinks into the space left of it while open
+  function setPanel(open) {
+    $('panel').classList.toggle('hidden', !open);
+    document.body.classList.toggle('panel-open', open);
+  }
   setTimeout(() => { $('hint').style.opacity = 0; }, 4000);
 
   const now = new Date();
